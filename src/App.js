@@ -1,6 +1,8 @@
 import React, { Component } from 'react';
 import './App.css';
 import { CognitoUserPool,CognitoUserAttribute,CognitoUser,AuthenticationDetails } from 'amazon-cognito-identity-js';
+import AWS from 'aws-sdk';
+
 
 class App extends Component {
 
@@ -9,6 +11,7 @@ class App extends Component {
       this.state = {
         UserPoolId : "ap-south-1_blf2ahffy",
         ClientId: "44l9p4rbt3i39tjtpldm8tktf8",
+        IdentityPoolId: 'ap-south-1:7fe3ff0d-a05d-4906-9d9d-78dd71781f61',
         // email: "",
         // username: "",
         // phone: "",
@@ -16,8 +19,12 @@ class App extends Component {
         // confirmCode: "",
       }
     }
+
+  componentDidMount(){
+    this.loadAuthenticatedUser()
+  }
     
-  doRegister = (event) => {
+  doRegister = () => {
     console.log("resgister user")
 
     let poolData = {
@@ -48,7 +55,7 @@ class App extends Component {
     attributeList.push(attributeEmail);
     attributeList.push(attributePhoneNumber);
 
-    userPool.signUp(username, password, attributeList, null, function(err,result) {
+    userPool.signUp(username, password, attributeList, null, (err,result) => {
       if (err) {
         console.error(err);
       } else {
@@ -62,7 +69,7 @@ class App extends Component {
   }
   
   // saajidtest@grr.la
-  doConfirm = (event) => {
+  doConfirm = () => {
     let poolData = {
       UserPoolId: this.state.UserPoolId, // Your user pool id here
       ClientId: this.state.ClientId, // Your client id here
@@ -75,7 +82,7 @@ class App extends Component {
     };
     
     let cognitoUser = new CognitoUser(userData);
-    cognitoUser.confirmRegistration(this.code.value, true, function(err, result) {
+    cognitoUser.confirmRegistration(this.code.value, true, (err, result) => {
       if (err) {
         console.log(err)
       } else {
@@ -104,10 +111,15 @@ class App extends Component {
     };
     let cognitoUser = new CognitoUser(userData);
     cognitoUser.authenticateUser(authenticationDetails, {
-      onSuccess: function(result) {
+      onSuccess: (result) => {
         console.log("User Data" , result)
         let accessToken = result.getAccessToken().getJwtToken();
         console.log("Access Token", accessToken)
+
+    // let creds = new.AWS.cognitoIdentityCredentials({
+
+
+    // })
     
         //POTENTIAL: Region needs to be set if not already set previously elsewhere.
         // AWS.config.region = '<region>';
@@ -134,12 +146,67 @@ class App extends Component {
         // });
       },
     
-      onFailure: function(err) {
+      onFailure: (err) => {
         console.error(err);
       },
     });
   }
 
+  loadAuthenticatedUser = () => {
+    // console.log("Loading Auth user")
+
+    var poolData = {
+      UserPoolId: this.state.UserPoolId, // Your user pool id here
+      ClientId: this.state.ClientId, // Your client id here
+    };
+    var userPool = new CognitoUserPool(poolData);
+    var cognitoUser = userPool.getCurrentUser();
+    
+    if (cognitoUser != null) {
+      cognitoUser.getSession((err, session) => {
+        if (err) {
+          alert(err.message || JSON.stringify(err));
+          return;
+        }
+        console.log('session validity: ' + session.isValid());
+    
+        let creds = new AWS.CognitoIdentityCredentials({
+            IdentityPoolId: 'ap-south-1:7fe3ff0d-a05d-4906-9d9d-78dd71781f61', // your identity pool id here
+            Logins: {
+              // Change the key below according to the specific region your user pool is in.
+              'cognito-idp.ap-south-1.amazonaws.com/ap-south-1_blf2ahffy': session
+                .getIdToken()
+                .getJwtToken(),
+            },
+          },{
+            region: "ap-south-1"
+          });
+
+        console.log(creds)
+        creds.refresh = (err,data) => {
+          if(err) console.log(err)
+          else{
+            console.log(creds)
+          }
+        }
+    
+        // AWS.config.credentials = new AWS.CognitoIdentityCredentials({
+        //   IdentityPoolId: '...', // your identity pool id here
+        //   Logins: {
+        //     // Change the key below according to the specific region your user pool is in.
+        //     'cognito-idp.<region>.amazonaws.com/<YOUR_USER_POOL_ID>': session
+        //       .getIdToken()
+        //       .getJwtToken(),
+        //   },
+        // });
+    
+        // Instantiate aws sdk service objects now that the credentials have been updated.
+        // example: var s3 = new AWS.S3();
+      });
+    }
+  }
+
+  
 
   render() {
     return (
